@@ -1,6 +1,6 @@
 # @danielloynaz/timeline
 
-[![CI](https://github.com/danielloynaz/timeline/actions/workflows/ci.yml/badge.svg)](https://github.com/danielloynaz/timeline/actions/workflows/ci.yml)
+[![CI](https://github.com/danielloynaz/timeline/actions/workflows/ci.yml/badge.svg)](https://github.com/danielloynaz/timeline/actions/workflows/ci.yml) [![Storybook](https://github.com/danielloynaz/timeline/actions/workflows/storybook.yml/badge.svg)](https://danielloynaz.github.io/timeline/)
 
 A reusable, high-performance horizontal timeline component in pure JavaScript. Tracks with fixed labels on the left, a date axis on top, Canvas-rendered interval bars and event markers, interactive navigation, selection, filtering and transactional interval editing. Works in plain HTML and embeds in Angular, React, Vue or anything else without a wrapper.
 
@@ -47,7 +47,7 @@ Or consume the repository directly without a registry: `npm install github:danie
 </script>
 ```
 
-Full contract, options, events, theming and Angular usage: [docs/API.md](docs/API.md). Live, interactive documentation: `npm run storybook`.
+Full contract, options, events, theming and Angular usage: [docs/API.md](docs/API.md). Live, interactive documentation: **https://danielloynaz.github.io/timeline/** (or `npm run storybook` locally).
 
 ## Development
 
