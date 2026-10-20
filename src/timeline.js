@@ -1,6 +1,7 @@
 /**
  * Public facade. Owns configuration, lifecycle, data state and render
- * scheduling, and wires the DOM-free core to the DOM/Canvas modules.
+ * scheduling, and wires the DOM-free core to the DOM/Canvas modules and the
+ * interaction controllers.
  */
 
 import { ErrorCodes, TimelineError, fail } from './core/errors.js';
@@ -20,21 +21,32 @@ import {
   nearestPreset,
   sameView,
   setScale,
+  clampViewport,
 } from './core/viewport.js';
+import { timeToX } from './core/time-scale.js';
 import { generateTicks } from './core/ticks.js';
 import { createFormatter } from './core/format.js';
 import { createEmitter, EVENTS } from './core/emitter.js';
 import { ensureStyles } from './dom/styles.js';
 import { buildLayout } from './dom/layout.js';
 import { createLabelColumn } from './dom/labels.js';
+import { createTooltip, describeItem } from './dom/tooltip.js';
+import { createA11y } from './dom/a11y.js';
 import { createLayer, readTheme } from './rendering/layers.js';
 import { renderAxis } from './rendering/axis-renderer.js';
 import { renderData, visibleRows } from './rendering/data-renderer.js';
+import { renderOverlay } from './rendering/overlay-renderer.js';
+import { createSelectionController } from './interaction/selection-controller.js';
+import { createIntervalEditor } from './interaction/interval-editor.js';
+import { attachPointerController } from './interaction/pointer-controller.js';
+import { attachKeyboardController } from './interaction/keyboard-controller.js';
+import { attachHScrollController } from './interaction/hscroll-controller.js';
 
 /**
  * @typedef {import('./core/validation.js').TimelineOptions} TimelineOptions
  * @typedef {import('./core/validation.js').NormalizedOptions} NormalizedOptions
  * @typedef {import('./core/validation.js').NormalizedData} NormalizedData
+ * @typedef {import('./core/validation.js').NormalizedTrack} NormalizedTrack
  * @typedef {import('./core/data-index.js').DataIndex} DataIndex
  * @typedef {import('./core/viewport.js').ViewportState} ViewportState
  */
@@ -47,14 +59,21 @@ import { renderData, visibleRows } from './rendering/data-renderer.js';
  */
 
 /**
+ * @typedef {object} TimelinePatch
+ * @property {object[]} [tracks]
+ * @property {object[]} [intervals]
+ * @property {object[]} [events]
+ * @property {{ tracks?: unknown[], intervals?: unknown[], events?: unknown[] }} [remove]
+ * @property {Record<string, string|number>} [replaceIds] temporary id → final id
+ */
+
+/**
  * @typedef {object} TimelineFilters
- * @property {string[] | ((track: import('./core/validation.js').NormalizedTrack) => boolean) | null} [tracks] visible track IDs or predicate
+ * @property {string[] | ((track: NormalizedTrack) => boolean) | null} [tracks] visible track IDs or predicate
  * @property {((interval: import('./core/validation.js').NormalizedInterval) => boolean) | null} [intervals]
  * @property {((event: import('./core/validation.js').NormalizedEvent) => boolean) | null} [events]
  * @property {string[] | null} [eventTypes] only show these event types
  */
-
-const HSCROLL_HEIGHT = 10;
 
 /**
  * Throws when a browser feature the library depends on is missing.
@@ -86,6 +105,16 @@ export class Timeline {
   #emitter;
   /** @type {ReturnType<typeof createFormatter>} */
   #formatter;
+  /** @type {ReturnType<typeof createTooltip>} */
+  #tooltip;
+  /** @type {ReturnType<typeof createA11y>} */
+  #a11y;
+  /** @type {ReturnType<typeof createSelectionController>} */
+  #selection;
+  /** @type {ReturnType<typeof createIntervalEditor>} */
+  #editor;
+  /** @type {ReturnType<typeof attachPointerController>} */
+  #pointer;
 
   /** @type {{ tracks: object[], intervals: object[], events: object[] }} */
   #raw = { tracks: [], intervals: [], events: [] };
@@ -95,7 +124,7 @@ export class Timeline {
   #filters = {};
   /** @type {DataIndex} */
   #index;
-  /** @type {import('./core/validation.js').NormalizedTrack[]} */
+  /** @type {NormalizedTrack[]} */
   #rows = [];
   /** @type {Map<string, number>} */
   #rowOfTrack = new Map();
@@ -110,21 +139,18 @@ export class Timeline {
   /** @type {import('./rendering/layers.js').Theme | null} */
   #theme = null;
 
+  /** @type {{ hoverId: string | null, focusId: string | null, marquee: { start: number, end: number } | null }} */
+  #overlay = { hoverId: null, focusId: null, marquee: null };
+
   #dirty = { axis: true, data: true, overlay: true, labels: true };
   #raf = 0;
   #destroyed = false;
   #abort = new AbortController();
   /** @type {ResizeObserver | null} */
   #resizeObserver = null;
-  /** @type {MediaQueryList | null} */
-  #dprQuery = null;
-  #dpr = 1;
+  /** @type {MutationObserver | null} */
+  #themeObserver = null;
   #compact = false;
-
-  /** @type {Set<string>} */
-  #selection = new Set();
-  /** @type {string | null} */
-  #primaryId = null;
 
   /**
    * @param {HTMLElement} container Host element; the library appends one root node inside it.
@@ -140,7 +166,10 @@ export class Timeline {
     const o = this.#options;
     this.#formatter = createFormatter(o.locale, o.timeZone, o.formats);
 
-    if (o.injectStyles) ensureStyles(container.getRootNode() instanceof ShadowRoot ? /** @type {ShadowRoot} */ (container.getRootNode()) : container.ownerDocument);
+    if (o.injectStyles) {
+      const rootNode = container.getRootNode();
+      ensureStyles(rootNode instanceof ShadowRoot ? rootNode : container.ownerDocument);
+    }
     this.#nodes = buildLayout(container, o);
     this.#emitter = createEmitter(this.#nodes.root);
     this.#layers = {
@@ -149,6 +178,7 @@ export class Timeline {
       overlay: createLayer(this.#nodes.overlayCanvas),
     };
     this.#labels = createLabelColumn(this.#nodes.labels);
+    this.#tooltip = createTooltip(this.#nodes.tooltip, this.#nodes.root);
     this.#index = buildDataIndex(this.#data);
 
     const width = Math.max(1, this.#nodes.canvasArea.clientWidth || this.#container.clientWidth - o.labelWidth);
@@ -160,6 +190,68 @@ export class Timeline {
       minPxPerMs: presetToPxPerMs(o.zoom.max, o.zoom.presets),
       maxPxPerMs: presetToPxPerMs(o.zoom.min, o.zoom.presets),
     });
+
+    this.#selection = createSelectionController({
+      isSelectable: (id) => this.#isSelectable(id),
+      multiSelect: () => this.#options.multiSelect,
+      emit: (detail) => this.#emitter.emit('selectionChange', detail),
+      invalidate: () => this.#invalidate({ overlay: true, labels: true }),
+    });
+    this.#editor = createIntervalEditor({
+      options: () => this.#options,
+      index: () => this.#index,
+      emit: (name, detail) => this.#emitter.emit(name, detail),
+      invalidate: () => this.#invalidate({ overlay: true }),
+      formatter: () => this.#formatter,
+    });
+    for (const name of ['intervalEditStart', 'intervalEditCommit', 'intervalEditCancel']) {
+      this.#emitter.on(name, () => this.#invalidate({ data: true, overlay: true }));
+    }
+    this.#a11y = createA11y({ timeline: this });
+
+    const signal = this.#abort.signal;
+    this.#pointer = attachPointerController({
+      timeline: this,
+      selection: this.#selection,
+      editor: this.#editor,
+      overlay: {
+        setHover: (id) => {
+          this.#overlay.hoverId = id;
+          this.#invalidate({ overlay: true });
+        },
+        setMarquee: (m) => {
+          this.#overlay.marquee = m;
+          this.#invalidate({ overlay: true });
+        },
+      },
+      tooltip: {
+        show: (id, hit, x, y) => {
+          if (!hit.item) return;
+          const track = hit.item.trackId ? this.#index.trackById.get(hit.item.trackId) : null;
+          const offsetX = this.#nodes.canvasArea.offsetLeft;
+          const offsetY = this.#nodes.scroller.offsetTop;
+          this.#tooltip.show(id, describeItem(hit.item, track, this.#formatter), x + offsetX, y + offsetY);
+        },
+        move: (x, y) => this.#tooltip.move(x, y),
+        hide: () => this.#tooltip.hide(),
+      },
+      signal,
+    });
+    attachKeyboardController({
+      timeline: this,
+      selection: this.#selection,
+      editor: this.#editor,
+      pointer: this.#pointer,
+      focus: {
+        getFocus: () => this.#overlay.focusId,
+        setFocus: (id) => {
+          this.#overlay.focusId = id;
+          this.#invalidate({ overlay: true });
+        },
+      },
+      signal,
+    });
+    attachHScrollController({ timeline: this, signal });
 
     this.#bindEnvironment();
     this.#measure();
@@ -173,7 +265,7 @@ export class Timeline {
     return this.#destroyed;
   }
 
-  /** Root element created by the library (the dispatch target for `timeline:*` events). */
+  /** Root element created by the library (dispatch target for `timeline:*` events). */
   get element() {
     return this.#nodes.root;
   }
@@ -189,6 +281,7 @@ export class Timeline {
    */
   destroy() {
     if (this.#destroyed) return;
+    this.#editor.dispose();
     this.#emitter.emit('destroy');
     this.#destroyed = true;
     this.#abort.abort();
@@ -196,9 +289,19 @@ export class Timeline {
     this.#raf = 0;
     this.#resizeObserver?.disconnect();
     this.#resizeObserver = null;
-    this.#dprQuery = null;
+    this.#themeObserver?.disconnect();
+    this.#themeObserver = null;
     this.#labels.clear();
+    this.#a11y.dispose();
     this.#nodes.root.remove();
+    // Drop heavy state so a host that keeps a reference to the destroyed
+    // instance does not keep the data set alive.
+    this.#raw = { tracks: [], intervals: [], events: [] };
+    this.#data = { tracks: [], intervals: [], events: [], orphans: { intervals: [], events: [] } };
+    this.#index = buildDataIndex(this.#data);
+    this.#rows = [];
+    this.#rowOfTrack = new Map();
+    this.#ticks = null;
   }
 
   #assertAlive() {
@@ -229,6 +332,17 @@ export class Timeline {
     return this;
   }
 
+  /**
+   * Dispatch a library event. Used by controllers; hosts normally only listen.
+   * @param {string} name
+   * @param {Record<string, unknown>} [detail]
+   * @param {{ cancelable?: boolean }} [opts]
+   * @returns {boolean} false when a listener called `preventDefault()`
+   */
+  emit(name, detail, opts) {
+    return this.#emitter.emit(name, detail, opts);
+  }
+
   // ───────────────────────── data ─────────────────────────
 
   /**
@@ -246,13 +360,14 @@ export class Timeline {
       events: [...(data?.events ?? [])],
     };
     this.#applyData(normalized);
+    this.#editor.onDataApplied(undefined, true);
   }
 
   /**
    * Apply an incremental patch: upsert by id, remove by id and rename
    * temporary IDs. The resulting data set is validated as a whole before
    * anything is applied.
-   * @param {{ tracks?: object[], intervals?: object[], events?: object[], remove?: { tracks?: unknown[], intervals?: unknown[], events?: unknown[] }, replaceIds?: Record<string, string|number> }} patch
+   * @param {TimelinePatch} patch
    */
   updateData(patch) {
     this.#assertAlive();
@@ -260,6 +375,7 @@ export class Timeline {
     const normalized = validateData(raw);
     this.#raw = raw;
     this.#applyData(normalized);
+    this.#editor.onDataApplied(patch.replaceIds, false);
   }
 
   /** Shallow copies of the caller-supplied source objects currently held. */
@@ -274,8 +390,12 @@ export class Timeline {
     this.#data = normalized;
     this.#dataVersion++;
     this.#rebuildIndex();
-    this.#reconcileSelection();
-    this.#invalidate({ axis: false, data: true, overlay: true, labels: true });
+    this.#a11y.reset();
+    this.#selection.reconcile();
+    if (this.#overlay.focusId && !this.#index.intervalById.has(this.#overlay.focusId) && !this.#index.eventById.has(this.#overlay.focusId)) {
+      this.#overlay.focusId = null;
+    }
+    this.#invalidate({ data: true, overlay: true, labels: true });
     const { intervals, events } = normalized.orphans;
     if (intervals.length || events.length) {
       this.#emitter.emit('dataError', {
@@ -310,11 +430,17 @@ export class Timeline {
     if (filters !== null && typeof filters !== 'object') fail(ErrorCodes.INVALID_TYPE, 'setFilters() expects an object or null');
     this.#filters = { ...(filters ?? {}) };
     this.#rebuildIndex();
-    this.#reconcileSelection();
+    this.#a11y.reset();
+    this.#selection.reconcile();
     this.#invalidate({ data: true, overlay: true, labels: true });
   }
 
-  // ───────────────────────── selection (state only; interaction wired by controllers) ─────────────────────────
+  /** Current filters. */
+  getFilters() {
+    return { ...this.#filters };
+  }
+
+  // ───────────────────────── selection ─────────────────────────
 
   /**
    * Programmatic selection. IDs that don't exist or aren't selectable are ignored.
@@ -325,20 +451,15 @@ export class Timeline {
   setSelection(ids, opts = {}) {
     this.#assertAlive();
     const list = ids === null || ids === undefined ? [] : typeof ids === 'string' || typeof ids === 'number' ? [ids] : [...ids];
-    const next = new Set();
-    for (const id of list) {
-      const key = String(id);
-      if (this.#isSelectable(key)) next.add(key);
-    }
-    this.#selection = next;
-    const primary = opts.primary !== undefined && opts.primary !== null ? String(opts.primary) : null;
-    this.#primaryId = primary && next.has(primary) ? primary : next.size ? [...next][next.size - 1] : null;
-    this.#invalidate({ overlay: true, labels: true });
+    this.#selection.set(
+      list.map(String),
+      opts.primary !== undefined && opts.primary !== null ? String(opts.primary) : null,
+    );
   }
 
   /** Selected item IDs (intervals and events) plus the primary one. */
   getSelection() {
-    return { ids: [...this.#selection], primaryId: this.#primaryId };
+    return this.#selection.detail();
   }
 
   /** @param {string} id */
@@ -347,27 +468,31 @@ export class Timeline {
     const it = this.#index.intervalById.get(id) ?? this.#index.eventById.get(id);
     if (!it) return false;
     if (it.kind === 'event' && it.scope === 'global') return true;
-    return this.#rowOfTrackLive().has(/** @type {string} */ (it.trackId));
-  }
-
-  #reconcileSelection() {
     this.#ensureRows();
-    let changed = false;
-    for (const id of [...this.#selection]) {
-      if (!this.#isSelectable(id)) {
-        this.#selection.delete(id);
-        changed = true;
-      }
-    }
-    if (this.#primaryId && !this.#selection.has(this.#primaryId)) {
-      this.#primaryId = this.#selection.size ? [...this.#selection][this.#selection.size - 1] : null;
-      changed = true;
-    }
-    if (changed) this.#emitSelection();
+    return this.#rowOfTrack.has(/** @type {string} */ (it.trackId));
   }
 
-  #emitSelection() {
-    this.#emitter.emit('selectionChange', { ids: [...this.#selection], primaryId: this.#primaryId });
+  // ───────────────────────── editing ─────────────────────────
+
+  /**
+   * Reject a committed edit: removes the pending preview and restores the original.
+   * @param {string|number} id interval id, or the temporary id of a new interval
+   */
+  rejectEdit(id) {
+    this.#assertAlive();
+    this.#editor.reject(String(id));
+  }
+
+  /** Cancel an in-progress edit interaction, if any. */
+  cancelEdit() {
+    this.#assertAlive();
+    if (this.#editor.isEditing) this.#editor.cancel('api');
+    this.#pointer.cancelGesture();
+  }
+
+  /** IDs of intervals with a committed edit awaiting host data. */
+  getPendingEdits() {
+    return [...this.#editor.pendingIds()];
   }
 
   // ───────────────────────── viewport ─────────────────────────
@@ -404,6 +529,15 @@ export class Timeline {
   }
 
   /**
+   * Move the visible start without changing the scale.
+   * @param {number} startMs
+   */
+  setViewportStart(startMs) {
+    this.#assertAlive();
+    this.#applyViewport(clampViewport({ ...this.#viewport, start: startMs }));
+  }
+
+  /**
    * Jump to a zoom preset, keeping the centre fixed.
    * @param {string} level e.g. `'day' | 'week' | 'month' | 'quarter'`
    */
@@ -429,7 +563,7 @@ export class Timeline {
   }
 
   /**
-   * Pan by a fraction of the visible range (`'left'`/`'right'` = 25%) or by milliseconds.
+   * Pan by a quarter of the visible range (`'left'`/`'right'`) or by milliseconds.
    * @param {'left'|'right'|number} amount
    */
   pan(amount) {
@@ -438,6 +572,14 @@ export class Timeline {
     const ms = amount === 'left' ? -visible / 4 : amount === 'right' ? visible / 4 : amount;
     if (typeof ms !== 'number' || !Number.isFinite(ms)) fail(ErrorCodes.INVALID_TYPE, 'pan() expects "left", "right" or a number of ms');
     this.#applyViewport(panByTime(this.#viewport, ms));
+  }
+
+  /**
+   * Pan by a pixel delta (used by pointer/wheel controllers).
+   * @param {number} dx positive moves later in time
+   */
+  panByPixels(dx) {
+    this.#applyViewport(panByPixels(this.#viewport, dx));
   }
 
   /** Fit the view to the extent of the current data (within domain and zoom bounds). */
@@ -452,42 +594,49 @@ export class Timeline {
   }
 
   /**
-   * @param {ViewportState} next
-   * @param {boolean} [silent]
+   * Pan the minimum amount so `[start, end]` is visible (scale unchanged).
+   * @param {number} start
+   * @param {number} end
    */
-  #applyViewport(next, silent = false) {
-    if (sameView(next, this.#viewport)) return;
-    this.#viewport = next;
-    this.#invalidate({ axis: true, data: true, overlay: true, labels: this.#options.hideEmptyTracks });
-    if (!silent) this.#emitter.emit('viewportChange', this.#viewportDetail(next));
+  ensureTimeVisible(start, end) {
+    const v = this.#viewport;
+    const vEnd = viewportEnd(v);
+    const pad = (vEnd - v.start) * 0.05;
+    if (start < v.start) this.#applyViewport(clampViewport({ ...v, start: start - pad }));
+    else if (end > vEnd) this.#applyViewport(clampViewport({ ...v, start: end + pad - (vEnd - v.start) }));
   }
 
   /**
-   * Pan by a pixel delta (used by pointer/wheel controllers).
-   * @param {number} dx positive moves later in time
+   * Scroll vertically the minimum amount so `row` is fully visible.
+   * @param {number} row
    */
-  panByPixels(dx) {
-    this.#applyViewport(panByPixels(this.#viewport, dx));
+  scrollRowIntoView(row) {
+    const s = this.#nodes.scroller;
+    const rh = this.#options.rowHeight;
+    const top = row * rh;
+    const bottom = top + rh;
+    if (top < s.scrollTop) s.scrollTop = top;
+    else if (bottom > s.scrollTop + s.clientHeight) s.scrollTop = bottom - s.clientHeight;
   }
 
-  // ───────────────────────── geometry ─────────────────────────
+  /**
+   * @param {ViewportState} next
+   */
+  #applyViewport(next) {
+    if (sameView(next, this.#viewport)) return;
+    this.#viewport = next;
+    this.#invalidate({ axis: true, data: true, overlay: true, labels: this.#options.hideEmptyTracks });
+    this.#emitter.emit('viewportChange', this.#viewportDetail(next));
+  }
+
+  // ───────────────────────── geometry (read by controllers) ─────────────────────────
 
   /** Current time scale with origin 0 at the left edge of the data area. */
   get scale() {
     return toTimeScale(this.#viewport, 0);
   }
 
-  /** Visible rows and their geometry for the current scroll position. */
-  get rowGeometry() {
-    this.#ensureRows();
-    const o = this.#options;
-    const scrollTop = this.#nodes.scroller.scrollTop;
-    const height = this.#layers.data.height;
-    const { firstRow, lastRow } = visibleRows(scrollTop, height, o.rowHeight, this.#rows.length);
-    return { rows: this.#rows, rowOfTrack: this.#rowOfTrack, rowHeight: o.rowHeight, barHeight: o.barHeight, markerSize: o.markerSize, scrollTop, firstRow, lastRow, width: this.#layers.data.width, height };
-  }
-
-  /** The data index (read-only use by controllers). */
+  /** The (filtered) data index. */
   get index() {
     return this.#index;
   }
@@ -497,23 +646,36 @@ export class Timeline {
     return this.#formatter;
   }
 
-  /** Library DOM nodes (read-only use by controllers). */
+  /** Library DOM nodes. */
   get nodes() {
     return this.#nodes;
   }
 
-  #rowOfTrackLive() {
+  /**
+   * Pixel x of a timestamp inside the data area (convenience for hosts
+   * positioning their own overlays).
+   * @param {string|number|Date} time
+   */
+  timeToX(time) {
+    return timeToX(this.scale, toEpoch(time, 'time', 'timeToX(): '));
+  }
+
+  /**
+   * Row index of a track in the current layout, or -1 if hidden/filtered.
+   * @param {string|number} trackId
+   */
+  rowOf(trackId) {
     this.#ensureRows();
-    return this.#rowOfTrack;
+    return this.#rowOfTrack.get(String(trackId)) ?? -1;
   }
 
   #ensureRows() {
     const o = this.#options;
     const v = this.#viewport;
-    const key = `${this.#dataVersion}|${JSON.stringify(this.#filters.tracks ?? null)}|${o.hideEmptyTracks ? `${v.start}|${v.pxPerMs}|${v.width}` : ''}`;
-    if (key === this.#rowsKey) return;
     const tf = this.#filters.tracks;
-    /** @type {((t: import('./core/validation.js').NormalizedTrack) => boolean) | null} */
+    const key = `${this.#dataVersion}|${Array.isArray(tf) ? tf.join(',') : typeof tf === 'function' ? 'fn' : ''}|${o.hideEmptyTracks ? `${v.start}|${v.pxPerMs}|${v.width}` : ''}`;
+    if (key === this.#rowsKey) return;
+    /** @type {((t: NormalizedTrack) => boolean) | null} */
     let trackFilter = null;
     if (Array.isArray(tf)) {
       const allowed = new Set(tf.map(String));
@@ -545,16 +707,21 @@ export class Timeline {
     this.#resizeObserver.observe(this.#nodes.root);
     this.#resizeObserver.observe(this.#nodes.canvasArea);
     this.#nodes.scroller.addEventListener('scroll', () => this.#invalidate({ data: true, overlay: true, labels: true }), { signal, passive: true });
+    this.#themeObserver = new MutationObserver(() => {
+      this.#theme = null;
+      this.#invalidate({ axis: true, data: true, overlay: true });
+    });
+    this.#themeObserver.observe(this.#nodes.root, { attributes: true, attributeFilter: ['data-tl-theme', 'style', 'class'] });
     this.#watchDpr();
   }
 
   #watchDpr() {
     if (this.#destroyed || typeof matchMedia !== 'function') return;
-    this.#dpr = window.devicePixelRatio || 1;
-    this.#dprQuery = matchMedia(`(resolution: ${this.#dpr}dppx)`);
-    this.#dprQuery.addEventListener(
+    const dpr = window.devicePixelRatio || 1;
+    matchMedia(`(resolution: ${dpr}dppx)`).addEventListener(
       'change',
       () => {
+        if (this.#destroyed) return;
         this.#measure();
         this.#scheduleRender();
         this.#watchDpr();
@@ -600,11 +767,6 @@ export class Timeline {
     this.#scheduleRender();
   }
 
-  /** Request a redraw of the overlay layer (hover/selection/preview). */
-  invalidateOverlay() {
-    this.#invalidate({ overlay: true });
-  }
-
   #scheduleRender() {
     if (this.#raf || this.#destroyed) return;
     this.#raf = requestAnimationFrame(() => {
@@ -613,7 +775,7 @@ export class Timeline {
     });
   }
 
-  /** Synchronously flush pending rendering (tests, benchmarks). */
+  /** Synchronously flush pending rendering (tests, benchmarks, theme switches). */
   flush() {
     if (this.#destroyed) return;
     if (this.#raf) {
@@ -642,37 +804,30 @@ export class Timeline {
     return this.#ticks;
   }
 
-  /** @type {Array<(frame: ReturnType<Timeline['frame']>) => void>} */
-  #overlayPainters = [];
-
-  /**
-   * Register an overlay painter (controllers draw hover/selection/previews).
-   * @param {(frame: ReturnType<Timeline['frame']>) => void} painter
-   */
-  addOverlayPainter(painter) {
-    this.#overlayPainters.push(painter);
-  }
-
   /** Snapshot of everything a renderer or hit-tester needs for the current frame. */
   frame() {
     this.#ensureRows();
     const v = this.#viewport;
-    const g = this.rowGeometry;
+    const o = this.#options;
+    const scrollTop = this.#nodes.scroller.scrollTop;
+    const width = this.#layers.data.width;
+    const height = this.#layers.data.height;
+    const { firstRow, lastRow } = visibleRows(scrollTop, height, o.rowHeight, this.#rows.length);
     return {
       scale: toTimeScale(v, 0),
       viewStart: v.start,
       viewEnd: viewportEnd(v),
-      width: g.width,
-      height: g.height,
-      rows: g.rows,
-      rowOfTrack: g.rowOfTrack,
+      width,
+      height,
+      rows: this.#rows,
+      rowOfTrack: this.#rowOfTrack,
       index: this.#index,
       ticks: this.#currentTicks(),
       theme: this.#theme ?? (this.#theme = readTheme(this.#nodes.root)),
-      geometry: { rowHeight: g.rowHeight, barHeight: g.barHeight, markerSize: g.markerSize, scrollTop: g.scrollTop, firstRow: g.firstRow, lastRow: g.lastRow },
-      selection: this.#selection,
-      primaryId: this.#primaryId,
-      options: this.#options,
+      geometry: { rowHeight: o.rowHeight, barHeight: o.barHeight, markerSize: o.markerSize, scrollTop, firstRow, lastRow },
+      selection: this.#selection.ids,
+      primaryId: this.#selection.primaryId,
+      options: o,
       formatter: this.#formatter,
       now: Date.now(),
     };
@@ -681,14 +836,18 @@ export class Timeline {
   #render() {
     const f = this.frame();
     const o = this.#options;
+    const hidden = this.#editor.pendingIds();
+    const active = this.#editor.active;
+    if (active && !active.isNew) hidden.add(active.intervalId);
+
     if (this.#dirty.axis && !this.#compact && o.showAxis) {
       renderAxis(this.#layers.axis.ctx, { scale: f.scale, width: this.#layers.axis.width, height: this.#layers.axis.height, ticks: f.ticks, theme: f.theme });
     }
     if (this.#dirty.data) {
-      renderData(this.#layers.data.ctx, { ...f, flags: { showGrid: o.showGrid, showTrackLines: o.showTrackLines, showToday: o.showToday } });
+      renderData(this.#layers.data.ctx, { ...f, hiddenIds: hidden, flags: { showGrid: o.showGrid, showTrackLines: o.showTrackLines, showToday: o.showToday } });
     }
     if (this.#dirty.labels || this.#dirty.data) {
-      const primary = this.#primaryId ? (this.#index.intervalById.get(this.#primaryId) ?? this.#index.eventById.get(this.#primaryId)) : null;
+      const primary = f.primaryId ? (this.#index.intervalById.get(f.primaryId) ?? this.#index.eventById.get(f.primaryId)) : null;
       this.#labels.render({
         rows: f.rows,
         firstRow: f.geometry.firstRow,
@@ -700,7 +859,8 @@ export class Timeline {
     }
     if (this.#dirty.overlay || this.#dirty.data) {
       this.#layers.overlay.clear();
-      for (const painter of this.#overlayPainters) painter(f);
+      renderOverlay(this.#layers.overlay.ctx, f, { ...this.#overlay, previews: this.#editor.previews() });
+      this.#a11y.schedule(() => this.frame(), this.#overlay.focusId, this.#selection.version);
     }
     this.#updateHScroll();
     this.#dirty = { axis: false, data: false, overlay: false, labels: false };
@@ -713,15 +873,11 @@ export class Timeline {
     if (trackW <= 0) return;
     const domain = v.domainEnd - v.domainStart;
     const visible = viewportEnd(v) - v.start;
-    const w = Math.max(16, (trackW * visible) / domain);
-    const left = ((trackW - w) * (v.start - v.domainStart)) / Math.max(1, domain - visible);
-    n.hthumb.style.width = `${Math.min(trackW, w)}px`;
-    n.hthumb.style.transform = `translateX(${Number.isFinite(left) ? Math.max(0, left) : 0}px)`;
-  }
-
-  /** @returns {number} height reserved for the horizontal scrollbar */
-  static get HSCROLL_HEIGHT() {
-    return HSCROLL_HEIGHT;
+    const w = Math.min(trackW, Math.max(16, (trackW * visible) / domain));
+    const range = domain - visible;
+    const left = range > 0 ? ((trackW - w) * (v.start - v.domainStart)) / range : 0;
+    n.hthumb.style.width = `${w}px`;
+    n.hthumb.style.transform = `translateX(${Math.max(0, Math.min(trackW - w, left))}px)`;
   }
 }
 

@@ -16,7 +16,7 @@
 
 /**
  * @param {HTMLElement} container
- * @param {{ labelWidth: number, axisHeight: number, rowHeight: number, theme: string, ariaLabel: string }} opts
+ * @param {{ labelWidth: number, axisHeight: number, rowHeight: number, theme: string, ariaLabel: string, cornerLabel?: string | null }} opts
  */
 export function buildLayout(container, opts) {
   const doc = container.ownerDocument;
@@ -34,6 +34,7 @@ export function buildLayout(container, opts) {
   root.style.setProperty('--tl-row-height', `${opts.rowHeight}px`);
 
   const corner = el('tl-corner');
+  if (opts.cornerLabel) corner.textContent = opts.cornerLabel;
   const axis = el('tl-axis');
   const axisCanvas = /** @type {HTMLCanvasElement} */ (el('tl-axis-canvas', 'canvas'));
   axisCanvas.setAttribute('aria-hidden', 'true');

@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'storybook-static/**', 'playwright-report/**', 'test-results/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'storybook-static/**', 'playwright-report/**', 'test-results/**', '.storybook/**'] },
   js.configs.recommended,
   {
     files: ['**/*.js', '**/*.mjs'],
@@ -14,5 +14,5 @@ export default [
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
-  },
+  }
 ];

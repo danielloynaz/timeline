@@ -26,14 +26,14 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build && node scripts/emit-css.js && tsc -p tsconfig.build.json",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test tests/integration",
-    "bench": "playwright test tests/performance --workers=1",
+    "test:e2e": "playwright test --project=chromium",
+    "bench": "playwright test --project=perf --workers=1",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
@@ -48,6 +48,10 @@
     "globals": "^17.13.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "storybook": "^10.6.3",
+    "@storybook/html-vite": "^10.6.3",
+    "@storybook/addon-a11y": "^10.6.3",
+    "@storybook/addon-docs": "^10.6.3"
   }
 }

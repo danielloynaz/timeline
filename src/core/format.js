@@ -57,6 +57,9 @@ export function createFormatter(locale, timeZone, overrides = {}) {
   };
 }
 
+/** @type {Map<string, Intl.NumberFormat>} */
+const numberFormatCache = new Map();
+
 /**
  * Compact human readable duration such as "3d 4h" or "45m".
  * @param {number} ms
@@ -64,7 +67,12 @@ export function createFormatter(locale, timeZone, overrides = {}) {
  */
 export function formatDuration(ms, locale) {
   const abs = Math.abs(ms);
-  const nf = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+  const key = locale ?? '';
+  let nf = numberFormatCache.get(key);
+  if (!nf) {
+    nf = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+    numberFormatCache.set(key, nf);
+  }
   if (abs < MS.minute) return `${nf.format(Math.round(abs / MS.second))}s`;
   if (abs < MS.hour) return `${nf.format(Math.floor(abs / MS.minute))}m`;
   if (abs < MS.day) {

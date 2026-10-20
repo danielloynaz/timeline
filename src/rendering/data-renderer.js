@@ -35,6 +35,7 @@ import { timeToX, clipRange } from '../core/time-scale.js';
  * @property {import('./layers.js').Theme} theme
  * @property {RowGeometry} geometry
  * @property {{ showGrid: boolean, showTrackLines: boolean, showToday: boolean }} flags
+ * @property {Set<string>} [hiddenIds] intervals currently represented by an edit preview
  * @property {number} now
  */
 
@@ -63,6 +64,14 @@ export function visibleRows(scrollTop, height, rowHeight, rowCount) {
 export function roundedRect(ctx, x, y, w, h, r) {
   const radius = Math.min(r, h / 2, w / 2);
   ctx.beginPath();
+  if (radius <= 0.5) {
+    ctx.rect(x, y, w, h);
+    return;
+  }
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, radius);
+    return;
+  }
   ctx.moveTo(x + radius, y);
   ctx.lineTo(x + w - radius, y);
   ctx.arcTo(x + w, y, x + w, y + radius, radius);
@@ -123,6 +132,49 @@ export function intervalRect(it, row, scale, width, g) {
   const w = Math.max(2, clipped.x1 - clipped.x0);
   const y = row * g.rowHeight - g.scrollTop + (g.rowHeight - g.barHeight) / 2;
   return { x, y, w, h: g.barHeight, clippedLeft: clipped.x0 !== timeToX(scale, it.start), clippedRight: clipped.x1 !== timeToX(scale, it.end) };
+}
+
+/**
+ * Draw a row's intervals. Consecutive bars that overlap (or touch) and share
+ * a colour are coalesced into one run: the union of same-height, same-colour
+ * bars is pixel-identical to drawing them individually, and dense overlapping
+ * data collapses from thousands of fills to a handful per row. Bars are
+ * sorted by start, so a single pass suffices.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('../core/validation.js').NormalizedInterval[]} intervals sorted by start
+ * @param {number} row
+ * @param {import('../core/validation.js').NormalizedTrack} track
+ * @param {DataFrame} f
+ * @param {number} width
+ */
+export function drawIntervalRuns(ctx, intervals, row, track, f, width) {
+  const g = f.geometry;
+  const radius = f.theme.barRadius;
+  const fallback = track.color ?? f.theme.accent;
+  /** @type {{ x0: number, x1: number, y: number, color: string } | null} */
+  let run = null;
+  const flush = () => {
+    if (!run) return;
+    ctx.fillStyle = run.color;
+    roundedRect(ctx, run.x0, run.y, Math.max(2, run.x1 - run.x0), g.barHeight, radius);
+    ctx.fill();
+    run = null;
+  };
+  for (const it of intervals) {
+    if (f.hiddenIds && f.hiddenIds.has(it.id)) continue;
+    const r = intervalRect(it, row, f.scale, width, g);
+    if (!r) continue;
+    const color = it.color ?? fallback;
+    const x1 = r.x + r.w;
+    if (run && color === run.color && r.x <= run.x1 + 0.5) {
+      if (x1 > run.x1) run.x1 = x1;
+      continue;
+    }
+    flush();
+    run = { x0: r.x, x1, y: r.y, color };
+  }
+  flush();
 }
 
 /**
@@ -191,13 +243,7 @@ export function renderData(ctx, f) {
     if (!track) continue;
     const { intervals, events } = index.queryRow(track.id, f.viewStart, f.viewEnd);
     const cy = row * g.rowHeight - g.scrollTop + g.rowHeight / 2;
-    for (const it of intervals) {
-      const r = intervalRect(it, row, scale, width, g);
-      if (!r) continue;
-      ctx.fillStyle = it.color ?? track.color ?? theme.accent;
-      roundedRect(ctx, r.x, r.y, r.w, r.h, theme.barRadius);
-      ctx.fill();
-    }
+    drawIntervalRuns(ctx, intervals, row, track, f, width);
     for (const ev of events) {
       const x = timeToX(scale, ev.time);
       if (x < -g.markerSize || x > width + g.markerSize) continue;

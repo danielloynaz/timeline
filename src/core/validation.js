@@ -51,6 +51,8 @@ export const MARKER_SHAPES = Object.freeze(['dot', 'line', 'diamond']);
  * @property {number} [minTickSpacing]
  * @property {number} [hitTolerance]
  * @property {boolean} [tooltips]
+ * @property {'ctrl'|'always'} [wheelZoom] which wheel gesture zooms ('ctrl' = ctrl/meta+wheel or pinch; 'always' = any vertical wheel)
+ * @property {string|null} [cornerLabel] text shown above the label column
  */
 
 export const DEFAULT_OPTIONS = Object.freeze({
@@ -82,6 +84,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
   minTickSpacing: 48,
   hitTolerance: 4,
   tooltips: true,
+  wheelZoom: 'ctrl',
+  cornerLabel: null,
 });
 
 /**
@@ -202,6 +206,10 @@ export function normalizeOptions(options) {
     fail(ErrorCodes.INVALID_CONFIG, 'options.trackOrder must be "data", "label", "firstEvent", "lastEvent" or a comparator');
   }
   if (o.formats && typeof o.formats !== 'object') fail(ErrorCodes.INVALID_CONFIG, 'options.formats must be an object');
+  if (o.wheelZoom !== 'ctrl' && o.wheelZoom !== 'always') fail(ErrorCodes.INVALID_CONFIG, 'options.wheelZoom must be "ctrl" or "always"');
+  if (o.cornerLabel !== null && o.cornerLabel !== undefined && typeof o.cornerLabel !== 'string') {
+    fail(ErrorCodes.INVALID_CONFIG, 'options.cornerLabel must be a string or null');
+  }
 
   return Object.freeze({
     ...o,

@@ -87,7 +87,7 @@ export const TIMELINE_CSS = String.raw`
   scrollbar-width: thin;
   scrollbar-color: var(--tl-scrollbar) var(--tl-scrollbar-track);
 }
-.tl-scroller:focus-visible { box-shadow: inset 0 0 0 2px var(--tl-focus); }
+.tl-scroller:focus-visible:not([data-tl-pointer-focus="true"]) { box-shadow: inset 0 0 0 2px var(--tl-focus); }
 .tl-spacer { position: absolute; top: 0; left: 0; width: 1px; pointer-events: none; }
 .tl-sticky {
   position: sticky; top: 0; height: 100%;

@@ -1,0 +1,40 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Introduction" />
+
+# @itech/timeline
+
+A framework-independent, Canvas-based horizontal timeline. Pure JavaScript (ES2022 modules), zero runtime dependencies, TypeScript declarations included.
+
+```js
+import { Timeline } from '@itech/timeline';
+
+const timeline = new Timeline(document.querySelector('#timeline'), {
+  startDate: '2026-03-01T00:00:00Z',
+  endDate: '2026-05-31T23:59:59Z',
+  editable: true,
+});
+timeline.setData({ tracks, intervals, events });
+timeline.on('intervalEditCommit', (e) => persist(e.detail));
+```
+
+## What it does
+
+- **Continuous time scale**: x is proportional to elapsed time; one shared transform for drawing, hit-testing and editing.
+- **Canvas data layer, HTML chrome**: tens of thousands of intervals and events; labels, tooltips, scrollbar and the accessible item list are DOM.
+- **Navigation**: drag to pan, Ctrl+wheel to zoom around the pointer, presets `day · week · month · quarter`, `fitToData()`, programmatic `setViewport()`.
+- **Interaction**: hover tooltips, single/multi selection, Shift+drag range marquee, keyboard navigation, low-level `itemClick` / `contextMenu` / `hover` events for host UI.
+- **Transactional editing**: create, move and resize intervals with preview; the host validates and persists, then hands authoritative data back with `updateData()`.
+- **Theming**: every colour and metric is a `--tl-*` CSS variable; dark and light themes built in.
+
+## Stories
+
+- **Timeline / Reference** – the reference screenshot reproduced from data.
+- **Timeline / Navigation** – pan, zoom and fit controls with the `viewportChange` log.
+- **Timeline / Selection** – selection, marquee, hover and keyboard access.
+- **Timeline / Editing** – the host-driven commit/reject workflow.
+- **Timeline / Themes** – light theme and CSS variable overrides.
+- **Timeline / Data Model** – global range events, markers, hidden and non-editable tracks, `dataError`.
+- **Timeline / Performance** – 1,000 tracks and 50,000 items.
+
+The complete contract is in **API**.
