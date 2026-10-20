@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@itech/timeline – vanilla demo</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; font-family: system-ui, sans-serif; background: #1b1e23; color: #e8eaed; }
+      header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid #333; }
+      header h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 600; }
+      button, select { background: #2e3239; color: inherit; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+      button:hover { background: #3a3f48; }
+      #timeline { height: 320px; margin: 14px; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
+      #log { margin: 0 14px 14px; padding: 8px 10px; height: 140px; overflow: auto; font: 12px/1.5 ui-monospace, monospace; background: #15171b; border-radius: 6px; color: #9aa0a6; white-space: pre-wrap; }
+      .hint { color: #9aa0a6; font-size: 12px; margin-left: auto; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>@itech/timeline</h1>
+      <button id="zoom-in" title="Zoom in">+</button>
+      <button id="zoom-out" title="Zoom out">−</button>
+      <select id="zoom-level" title="Zoom preset">
+        <option value="day">Day</option>
+        <option value="week" selected>Week</option>
+        <option value="month">Month</option>
+        <option value="quarter">Quarter</option>
+      </select>
+      <button id="pan-left" title="Pan left">◀</button>
+      <button id="pan-right" title="Pan right">▶</button>
+      <button id="fit">Fit to data</button>
+      <button id="theme">Toggle theme</button>
+      <button id="big">Load 50k items</button>
+      <span class="hint">Drag to pan · Wheel to zoom · Shift+drag or right-drag to select a range · Drag bars to edit</span>
+    </header>
+    <div id="timeline"></div>
+    <pre id="log"></pre>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
