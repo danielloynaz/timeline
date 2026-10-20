@@ -1,0 +1,53 @@
+{
+  "name": "@itech/timeline",
+  "version": "0.1.0",
+  "description": "Framework-independent, Canvas-based horizontal timeline component for large datasets.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "private": false,
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "main": "./dist/timeline.js",
+  "module": "./dist/timeline.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/timeline.js"
+    },
+    "./timeline.css": "./dist/timeline.css",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test tests/integration",
+    "bench": "playwright test tests/performance --workers=1",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@vitest/coverage-v8": "^5.0.5",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  }
+}
