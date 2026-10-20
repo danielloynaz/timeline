@@ -1,4 +1,6 @@
-# @itech/timeline
+# @danielloynaz/timeline
+
+[![CI](https://github.com/danielloynaz/timeline/actions/workflows/ci.yml/badge.svg)](https://github.com/danielloynaz/timeline/actions/workflows/ci.yml)
 
 A reusable, high-performance horizontal timeline component in pure JavaScript. Tracks with fixed labels on the left, a date axis on top, Canvas-rendered interval bars and event markers, interactive navigation, selection, filtering and transactional interval editing. Works in plain HTML and embeds in Angular, React, Vue or anything else without a wrapper.
 
@@ -9,14 +11,19 @@ A reusable, high-performance horizontal timeline component in pure JavaScript. T
 
 ## Install and use
 
+The package is published to GitHub Packages under the `@danielloynaz` scope. Point npm at that registry for the scope once, then install:
+
 ```bash
-npm install @itech/timeline
+echo "@danielloynaz:registry=https://npm.pkg.github.com" >> .npmrc
+npm install @danielloynaz/timeline
 ```
+
+Or consume the repository directly without a registry: `npm install github:danielloynaz/timeline` (runs `npm run build` on install via `prepare`), or clone it and reference it with `"@danielloynaz/timeline": "file:../timeline"`.
 
 ```html
 <div id="timeline" style="height: 360px"></div>
 <script type="module">
-  import { Timeline } from '@itech/timeline';
+  import { Timeline } from '@danielloynaz/timeline';
 
   const timeline = new Timeline(document.querySelector('#timeline'), {
     startDate: '2026-03-01T00:00:00Z',
@@ -91,7 +98,7 @@ Known limitations and deliberate scope decisions for this version:
 
 ## Distribution
 
-The package is ESM-only. To publish to a private registry add `"publishConfig": { "registry": "https://your-registry" }` to `package.json`; for local consumption use `npm pack` and install the tarball, or reference the folder with `"@itech/timeline": "file:../timeline"`.
+The package is ESM-only. `package.json` targets GitHub Packages (`publishConfig.registry`); publishing needs a token with `write:packages` (`npm login --registry=https://npm.pkg.github.com`). For a tarball use `npm pack`. Source: https://github.com/danielloynaz/timeline
 
 ## License
 

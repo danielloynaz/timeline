@@ -1,4 +1,4 @@
-import { Timeline, TimelineError, ErrorCodes } from '@itech/timeline';
+import { Timeline, TimelineError, ErrorCodes } from '@danielloynaz/timeline';
 
 const D = (month, day, hour = 0) => Date.UTC(2026, month - 1, day, hour);
 

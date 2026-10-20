@@ -1,4 +1,4 @@
-import { Timeline } from '@itech/timeline';
+import { Timeline } from '@danielloynaz/timeline';
 import { referenceData, generateDataset } from './data.js';
 
 const log = document.querySelector('#log');

@@ -1,5 +1,5 @@
 /**
- * @itech/timeline public entry point.
+ * @danielloynaz/timeline public entry point.
  *
  * Importing this module performs no DOM or window access, so it is safe to
  * import in server-side rendering environments; browser APIs are only touched

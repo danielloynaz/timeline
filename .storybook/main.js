@@ -8,7 +8,7 @@ const config = {
   core: { disableTelemetry: true },
   async viteFinal(cfg) {
     cfg.resolve = cfg.resolve ?? {};
-    cfg.resolve.alias = { ...(cfg.resolve.alias ?? {}), '@itech/timeline': resolve(process.cwd(), 'src/index.js') };
+    cfg.resolve.alias = { ...(cfg.resolve.alias ?? {}), '@danielloynaz/timeline': resolve(process.cwd(), 'src/index.js') };
     return cfg;
   },
 };

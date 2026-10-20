@@ -1,7 +1,24 @@
 {
-  "name": "@itech/timeline",
+  "name": "@danielloynaz/timeline",
   "version": "0.1.0",
   "description": "Framework-independent, Canvas-based horizontal timeline component for large datasets.",
+  "author": "Daniel Loynaz <danielloynaz@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielloynaz/timeline.git"
+  },
+  "homepage": "https://github.com/danielloynaz/timeline#readme",
+  "bugs": {
+    "url": "https://github.com/danielloynaz/timeline/issues"
+  },
+  "keywords": [
+    "timeline",
+    "canvas",
+    "gantt",
+    "visualization",
+    "vanilla-js",
+    "framework-agnostic"
+  ],
   "type": "module",
   "license": "UNLICENSED",
   "private": false,
@@ -35,7 +52,8 @@
     "test:e2e": "playwright test --project=chromium",
     "bench": "playwright test --project=perf --workers=1",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "prepare": "npm run build"
   },
   "engines": {
     "node": ">=20"
@@ -53,5 +71,8 @@
     "@storybook/html-vite": "^10.6.3",
     "@storybook/addon-a11y": "^10.6.3",
     "@storybook/addon-docs": "^10.6.3"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   }
 }

@@ -6,7 +6,7 @@ const here = import.meta.dirname;
 export default defineConfig(({ command }) => ({
   root: command === 'serve' ? resolve(here, 'examples/vanilla') : here,
   resolve: {
-    alias: { '@itech/timeline': resolve(here, 'src/index.js') },
+    alias: { '@danielloynaz/timeline': resolve(here, 'src/index.js') },
   },
   build: {
     outDir: resolve(here, 'dist'),

@@ -3,7 +3,7 @@
  * so the full JS cost of a frame (index queries, Canvas drawing, label DOM)
  * is captured synchronously with `performance.now()`.
  */
-import { Timeline } from '@itech/timeline';
+import { Timeline } from '@danielloynaz/timeline';
 import { hitTest } from '../../src/rendering/hit-testing.js';
 import { generateDataset } from '../../examples/vanilla/data.js';
 

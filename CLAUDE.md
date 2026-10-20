@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`@itech/timeline`: a framework-independent horizontal timeline component (tracks, interval bars, event markers) in **pure JavaScript ES modules with JSDoc types**. Canvas 2D draws the data; HTML provides labels, tooltips, scrollbar and accessibility. Zero runtime dependencies. It is consumed by an Angular 21 app but must never contain Angular/React/Vue code. Behaviour is modelled on Cambridge Intelligence KronoGraph; the visual target is `reference/timeline-reference.png`.
+`@danielloynaz/timeline`: a framework-independent horizontal timeline component (tracks, interval bars, event markers) in **pure JavaScript ES modules with JSDoc types**. Canvas 2D draws the data; HTML provides labels, tooltips, scrollbar and accessibility. Zero runtime dependencies. It is consumed by an Angular 21 app but must never contain Angular/React/Vue code. Behaviour is modelled on Cambridge Intelligence KronoGraph; the visual target is `reference/timeline-reference.png`.
 
 ## Commands
 
@@ -22,7 +22,7 @@ npm run storybook / npm run build-storybook   # live docs (stories/, html-vite)
 node scripts/screenshot.mjs out.png [url]     # screenshot the demo (needs a server on :4173: `npx vite --config vite.test.config.js --port 4173`)
 ```
 
-Playwright serves the repo root through `vite.test.config.js` (HMR off) so `/tests/integration/fixtures/index.html` and `/tests/performance/bench.html` load `src/` directly via the `@itech/timeline` alias. The dev server occasionally stalls a navigation; the config keeps `retries: 1` for that.
+Playwright serves the repo root through `vite.test.config.js` (HMR off) so `/tests/integration/fixtures/index.html` and `/tests/performance/bench.html` load `src/` directly via the `@danielloynaz/timeline` alias. The dev server occasionally stalls a navigation; the config keeps `retries: 1` for that.
 
 ## Architecture
 

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   root: import.meta.dirname,
-  resolve: { alias: { '@itech/timeline': resolve(import.meta.dirname, 'src/index.js') } },
+  resolve: { alias: { '@danielloynaz/timeline': resolve(import.meta.dirname, 'src/index.js') } },
   server: { host: '127.0.0.1', hmr: false, watch: null },
   optimizeDeps: { noDiscovery: true, include: [] },
 });

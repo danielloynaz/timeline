@@ -1,9 +1,9 @@
-# @itech/timeline API
+# @danielloynaz/timeline API
 
 Framework-independent, Canvas-based horizontal timeline. Pure JavaScript (ES2022, ES modules), zero runtime dependencies. TypeScript declarations ship in `dist/types`.
 
 ```js
-import { Timeline } from '@itech/timeline';
+import { Timeline } from '@danielloynaz/timeline';
 
 const timeline = new Timeline(document.querySelector('#timeline'), {
   startDate: '2026-03-01T00:00:00Z',
@@ -226,7 +226,7 @@ Everything visual is a CSS custom property on `.tl-root`; Canvas layers read the
 
 Key variables: `--tl-bg`, `--tl-axis-bg`, `--tl-fg`, `--tl-muted`, `--tl-label-fg`, `--tl-grid`, `--tl-grid-major`, `--tl-track-line`, `--tl-accent`, `--tl-selection`, `--tl-focus`, `--tl-hover`, `--tl-today`, `--tl-marquee`, `--tl-preview`, `--tl-tooltip-bg`, `--tl-tooltip-fg`, `--tl-font-family`, `--tl-font-size`, `--tl-label-font-size`, `--tl-bar-radius`, `--tl-global-range-alpha`.
 
-Styles are injected once per document via `adoptedStyleSheets` (fallback `<style data-tl-styles>`). Set `injectStyles: false` and import `@itech/timeline/timeline.css` to manage them yourself.
+Styles are injected once per document via `adoptedStyleSheets` (fallback `<style data-tl-styles>`). Set `injectStyles: false` and import `@danielloynaz/timeline/timeline.css` to manage them yourself.
 
 ## Errors and validation policy
 
@@ -259,7 +259,7 @@ The module can be imported in server-side rendering environments; browser APIs a
 ```html
 <div id="timeline" style="height: 360px"></div>
 <script type="module">
-  import { Timeline } from './node_modules/@itech/timeline/dist/timeline.js';
+  import { Timeline } from './node_modules/@danielloynaz/timeline/dist/timeline.js';
   const timeline = new Timeline(document.querySelector('#timeline'), { startDate: '2026-03-01', endDate: '2026-05-31' });
   timeline.setData({ tracks: [{ id: 'a', label: 'A' }], intervals: [{ id: 'i', trackId: 'a', start: '2026-03-02', end: '2026-03-09' }] });
 </script>
@@ -269,7 +269,7 @@ The module can be imported in server-side rendering environments; browser APIs a
 
 ```ts
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, NgZone } from '@angular/core';
-import { Timeline } from '@itech/timeline';
+import { Timeline } from '@danielloynaz/timeline';
 
 @Component({ selector: 'app-timeline', standalone: true, template: `<div #host class="timeline-host"></div>` })
 export class TimelineComponent implements AfterViewInit, OnDestroy {
@@ -292,8 +292,8 @@ export class TimelineComponent implements AfterViewInit, OnDestroy {
 }
 ```
 
-Nothing Angular-specific is required: the component is a plain class operating on a DOM element, events are native `CustomEvent`s, and styles are injected automatically (or add `node_modules/@itech/timeline/dist/timeline.css` to `angular.json` with `injectStyles: false`).
+Nothing Angular-specific is required: the component is a plain class operating on a DOM element, events are native `CustomEvent`s, and styles are injected automatically (or add `node_modules/@danielloynaz/timeline/dist/timeline.css` to `angular.json` with `injectStyles: false`).
 
 ### Distribution
 
-`npm run build` emits `dist/timeline.js` (ESM), `dist/timeline.css` and `dist/types/`. Publish to a private registry by adding `publishConfig.registry` to `package.json`, or consume locally with `npm pack` / `"@itech/timeline": "file:../timeline"`.
+`npm run build` emits `dist/timeline.js` (ESM), `dist/timeline.css` and `dist/types/`. The package is published to GitHub Packages (`@danielloynaz:registry=https://npm.pkg.github.com` in `.npmrc`); it can also be installed straight from the repository with `npm install github:danielloynaz/timeline`, or locally with `npm pack` / `"@danielloynaz/timeline": "file:../timeline"`. Source: https://github.com/danielloynaz/timeline
